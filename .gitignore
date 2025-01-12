@@ -27,7 +27,6 @@ out/
 .vscode/
 .vs/
 .vscode/
-.launchsettings.json
 
 # DotNet CLI
 *.vspscc
