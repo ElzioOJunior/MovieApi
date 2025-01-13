@@ -42,56 +42,64 @@ namespace TechChallenge.Infrastructure.Repositories
 
         public async Task<PrizeIntervals> GetProducersWithPrizeIntervals()
         {
-
             var moviesWithAwards = await _context.Movies
                 .Where(m => m.Winner == "yes")
                 .OrderBy(m => m.Producers)
                 .ThenBy(m => m.Year)
                 .ToListAsync();
 
-            var producersGroups = moviesWithAwards
-                .GroupBy(m => m.Producers)
-                .Where(group => group.Count() > 1)  
-                .ToList();
-
             var result = new PrizeIntervals();
             var allIntervals = new List<MovieInterval>();
 
-            foreach (var producerGroup in producersGroups)
+            foreach (var movie in moviesWithAwards)
             {
-                var producer = producerGroup.Key;
-                var sortedMovies = producerGroup.OrderBy(m => m.Year).ToList();
+                var producers = movie.Producers.Split(',').Select(p => p.Trim()).ToList();
 
-                for (int i = 0; i < sortedMovies.Count - 1; i++)
+                foreach (var producer in producers)
                 {
-                    var previousMovie = sortedMovies[i];
-                    var followingMovie = sortedMovies[i + 1];
+                    var producerGroup = moviesWithAwards
+                        .Where(m => m.Producers.Contains(producer) && m.Winner == "yes")
+                        .OrderBy(m => m.Year)
+                        .ToList();
 
-                    var interval = new MovieInterval
+                    if (producerGroup.Count() > 1)
                     {
-                        Producer = producer,
-                        PreviousWin = Convert.ToInt16(previousMovie.Year),
-                        FollowingWin = Convert.ToInt16(followingMovie.Year),
-                        Interval = Convert.ToInt16(followingMovie.Year) - Convert.ToInt16(previousMovie.Year)
-                    };
+                        for (int i = 0; i < producerGroup.Count() - 1; i++)
+                        {
+                            var previousMovie = producerGroup[i];
+                            var followingMovie = producerGroup[i + 1];
 
-                    allIntervals.Add(interval);
+                            var interval = new MovieInterval
+                            {
+                                Producer = producer,
+                                PreviousWin = Convert.ToInt16(previousMovie.Year),
+                                FollowingWin = Convert.ToInt16(followingMovie.Year),
+                                Interval = Convert.ToInt16(followingMovie.Year) - Convert.ToInt16(previousMovie.Year)
+                            };
+
+                            allIntervals.Add(interval);
+                        }
+                    }
                 }
             }
 
             if (allIntervals.Any())
             {
-                var minInterval = allIntervals.OrderBy(i => i.Interval).First().Interval;
+                var uniqueIntervals = allIntervals
+                    .GroupBy(i => new { i.Producer, i.Interval, i.PreviousWin, i.FollowingWin })
+                    .Select(group => group.First())
+                    .ToList();
 
-                result.Min.AddRange(allIntervals.Where(i => i.Interval == minInterval));
+                var minInterval = uniqueIntervals.OrderBy(i => i.Interval).First().Interval;
+                result.Min.AddRange(uniqueIntervals.Where(i => i.Interval == minInterval));
 
-                var maxInterval = allIntervals.OrderByDescending(i => i.Interval).First().Interval;
-
-                result.Max.AddRange(allIntervals.Where(i => i.Interval == maxInterval));
+                var maxInterval = uniqueIntervals.OrderByDescending(i => i.Interval).First().Interval;
+                result.Max.AddRange(uniqueIntervals.Where(i => i.Interval == maxInterval));
             }
 
             return result;
         }
+
 
     }
 }
